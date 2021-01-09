@@ -5,6 +5,7 @@ precision mediump float;
 #define MAX_STEPS 100
 #define MAX_DIST 100.
 #define SURF_DIST .01
+#define DITHER true
 
 uniform vec2 u_resolution;
 uniform float u_time;
@@ -111,7 +112,7 @@ float sphereSDF(vec3 samplePoint, vec4 s) {
    to the closest surface. Sign indicates whether the point is 
    inside or outside the surface, negative indicating inside. */
 float sceneSDF(vec3 p) {
-    vec4 s1 = vec4(0.0 + sin(u_time), 1.0, 6.0, 1.0);
+    vec4 s1 = vec4(0.0, 1.0, 6.0, 1.0);
 
     float d = sphereSDF(p, s1);
 
@@ -210,11 +211,19 @@ vec3 phongIllumination(vec3 k_a, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 r
     const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
     vec3 color = ambientLight * k_a;
 
-    vec3 light1Pos = vec3(0.0, 4.0, 4.0);
+    vec3 light1Pos = vec3(0.0 + 5. * cos(u_time), 
+                          1.0, 
+                          6.0 + 5. * sin(u_time));
     vec3 light1Intensity = vec3(0.4, 0.4, 0.4);
-
     color += phongContribForLight(k_d, k_s, alpha, p, rO,
                                   light1Pos, light1Intensity);
+    
+    vec3 light2Pos = vec3(0.0,
+                          1.0 + 5. * sin(u_time),
+                          6.0 + 5. * cos(u_time));
+    vec3 light2Intensity = vec3(0.4, 0.4, 0.4);
+    color += phongContribForLight(k_d, k_s, alpha, p, rO,
+                                  light2Pos, light2Intensity);
 
     return color;
 }
@@ -230,7 +239,7 @@ void main () {
     uv.x *= 2.0;
 
     // Background color
-    vec3 color = vec3(0.2);
+    vec3 color = vec3(0.3);
 
     // Camera location
     vec3 ro = vec3(0.0, 1.0, 0.0);
@@ -241,7 +250,7 @@ void main () {
 
     // Didn't hit anything
     if (d >= MAX_DIST) {
-        color = dither(color);
+        if (DITHER) color = dither(color);
         gl_FragColor = vec4(color, 1.0);
         return;
     }
@@ -256,7 +265,7 @@ void main () {
     
     color = phongIllumination(K_a, K_d, K_s, shininess, p, ro);
 
-    color = dither(color);
+    if (DITHER) color = dither(color);
 
 
     gl_FragColor = vec4(color, 1.0);
