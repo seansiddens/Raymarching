@@ -12,6 +12,8 @@ uniform float u_time;
 uniform sampler2D bayer8x8;
 uniform sampler2D bayer16x16;
 uniform sampler2D blueNoise64x64;
+uniform sampler2D blueNoiseRGB1024;
+uniform sampler2D blueNoise512;
 
 varying vec2 vTexCoord;
 
@@ -64,12 +66,34 @@ float blueNoise64x64Lookup() {
     return col;
 }
 
+vec3 blueNoiseRGB1024Lookup() {
+    vec2 st = vec2(mod(gl_FragCoord.x, 1024.) / 1024.,
+                   mod(gl_FragCoord.y, 1024.) / 1024.);
+
+    vec3 texCol = vec3(length(normalize(texture2D(blueNoiseRGB1024, st).rgb)));
+
+    return texCol;
+}
+
+vec3 blueNoise512Lookup() {
+    vec2 st = vec2(mod(gl_FragCoord.x, 512.) / 512., 
+                   mod(gl_FragCoord.y, 512.) / 512.);
+    vec3 texCol = vec3(texture2D(blueNoise512, st).r);
+    return texCol;
+}
+
 vec3 bayerQuantize(vec3 col) {
 
     return vec3(step(bayer16x16Lookup(), col.r), 
                 step(bayer16x16Lookup(), col.g),
                 step(bayer16x16Lookup(), col.b));
+}
 
+vec3 blueNoiseQuantize(vec3 col) {
+    vec3 texCol = blueNoise512Lookup();
+    return vec3(step(texCol.r, col.r),
+                step(texCol.g, col.g),
+                step(texCol.b, col.b));
 }
 
 vec3 quantize (vec3 col) {
@@ -83,7 +107,8 @@ vec3 quantize (vec3 col) {
     // col = vec3(step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.r), 
     //            step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.g),
     //            step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.b));
-    col = bayerQuantize(col);
+    // col = bayerQuantize(col);
+    col = blueNoiseQuantize(col);
     return col;
 }
 
