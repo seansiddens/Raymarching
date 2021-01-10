@@ -57,6 +57,17 @@ float bayer16x16Lookup() {
     return col;
 }
 
+vec3 bayerQuantize(vec3 col) {
+    float texCol = bayer16x16Lookup();
+    col = vec3(step(texCol, col.r));
+    // if (col.r <= texCol) 
+    //     col = vec3(0.0);
+    // else
+    //     col = vec3(1.0);
+
+    return col;
+}
+
 // Texture lookup for 64x64 blue noise texture
 float blueNoise64x64Lookup() {
     vec2 st = vec2(mod(gl_FragCoord.x, 64.) / 64.,
@@ -75,26 +86,15 @@ vec3 blueNoiseRGB1024Lookup() {
     return texCol;
 }
 
-vec3 blueNoise512Lookup() {
+float blueNoise512Lookup() {
     vec2 st = vec2(mod(gl_FragCoord.x, 512.) / 512., 
                    mod(gl_FragCoord.y, 512.) / 512.);
-    vec3 texCol = vec3(texture2D(blueNoise512, st).r);
+    float texCol = texture2D(blueNoise512, st).r;
     return texCol;
 }
 
-vec3 bayerQuantize(vec3 col) {
 
-    return vec3(step(bayer16x16Lookup(), col.r), 
-                step(bayer16x16Lookup(), col.g),
-                step(bayer16x16Lookup(), col.b));
-}
 
-vec3 blueNoiseQuantize(vec3 col) {
-    vec3 texCol = blueNoise512Lookup();
-    return vec3(step(texCol.r, col.r),
-                step(texCol.g, col.g),
-                step(texCol.b, col.b));
-}
 
 vec3 quantize (vec3 col) {
     // float c = step(0.5, col.r + rand(col.gb) * 1.5 - 1.0);
@@ -103,12 +103,13 @@ vec3 quantize (vec3 col) {
     // float c = step(bayer16x16Lookup(), col.r);
     // float c = step(blueNoise64x64Lookup(), col.r);
     // float c = step((blueNoise64x64Lookup() + .05*rand(col.gb)), col.r);
-    // float c = step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.r);
+    // col = vec3(step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.r));
     // col = vec3(step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.r), 
     //            step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.g),
     //            step((blueNoise64x64Lookup() + bayer16x16Lookup()) / 2.0, col.b));
-    // col = bayerQuantize(col);
-    col = blueNoiseQuantize(col);
+    col = bayerQuantize(col);
+    // col = blueNoiseQuantize(col);
+    // col = vec3(step((blueNoise512Lookup() + bayer16x16Lookup()) / 3.0, col.r));
     return col;
 }
 
@@ -129,7 +130,7 @@ vec3 dither(vec3 col) {
 /* Signed distance function describing a sphere positioned 
    at s.xyz with a radius of s.w */
 float sphereSDF(vec3 samplePoint, vec4 s) {
-    return length(samplePoint - s.xyz) - s.w;
+    return length(mod(samplePoint, 10.0) - s.xyz) - s.w;
 }
 
 /* Signed distance function describing the scene.
@@ -137,9 +138,11 @@ float sphereSDF(vec3 samplePoint, vec4 s) {
    to the closest surface. Sign indicates whether the point is 
    inside or outside the surface, negative indicating inside. */
 float sceneSDF(vec3 p) {
-    vec4 s1 = vec4(0.0, 1.0, 6.0, 1.0);
+    vec4 s1 = vec4(5.0, 5.0, 6.0, 2.0);
 
-    float d = sphereSDF(p, s1);
+    float sphereDist = sphereSDF(p, s1);
+
+    float d = sphereDist;
 
     return d;
 }
@@ -236,19 +239,21 @@ vec3 phongIllumination(vec3 k_a, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 r
     const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
     vec3 color = ambientLight * k_a;
 
-    vec3 light1Pos = vec3(0.0 + 5. * cos(u_time), 
-                          1.0, 
-                          6.0 + 5. * sin(u_time));
-    vec3 light1Intensity = vec3(0.4, 0.4, 0.4);
+    // vec3 light1Pos = vec3(0.0 + 5. * cos(u_time), 
+    //                       1.0, 
+    //                       6.0 + 5. * sin(u_time));
+    // vec3 light1Pos = vec3(0.0 + sin(u_time), 2.5 + u_time * 5., 0.0 + u_time * 15.);
+    vec3 light1Pos = rO;
+    vec3 light1Intensity = vec3(0.8, 0.8, 0.8);
     color += phongContribForLight(k_d, k_s, alpha, p, rO,
                                   light1Pos, light1Intensity);
     
-    vec3 light2Pos = vec3(0.0,
-                          1.0 + 5. * sin(u_time),
-                          6.0 + 5. * cos(u_time));
-    vec3 light2Intensity = vec3(0.4, 0.4, 0.4);
-    color += phongContribForLight(k_d, k_s, alpha, p, rO,
-                                  light2Pos, light2Intensity);
+    // vec3 light2Pos = vec3(0.0,
+    //                       1.0 + 5. * sin(u_time),
+    //                       6.0 + 5. * cos(u_time));
+    // vec3 light2Intensity = vec3(0.4, 0.4, 0.4);
+    // color += phongContribForLight(k_d, k_s, alpha, p, rO,
+    //                               light2Pos, light2Intensity);
 
     return color;
 }
@@ -256,7 +261,22 @@ vec3 phongIllumination(vec3 k_a, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 r
 /* END Lighting functions
 ---------------------------------------------------------------- */
 
+/* Return a transform matrix that will transform a ray from view
+   space to world coordinates, given the camera point, the camera
+   target, and an up vector. */
 
+mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
+    // Based on gluLookAt man page
+    vec3 f = normalize(center - eye);
+    vec3 s = normalize(cross(f, up));
+    vec3 u = cross(s, f);
+    return mat4(
+        vec4(s, 0.0),
+        vec4(u, 0.0),
+        vec4(-f, 0.0),
+        vec4(0.0, 0.0, 0.0, 1)
+    );
+}
 
 void main () {
     // Normalize coordinates so that (0, 0) is in center screen
@@ -264,11 +284,16 @@ void main () {
     uv.x *= 2.0;
 
     // Background color
-    vec3 color = vec3(0.3);
+    vec3 color = vec3(0.0);
 
     // Camera location
-    vec3 ro = vec3(0.0, 1.0, 0.0);
+    vec3 ro = vec3(2.5 + 5. * cos(u_time), 2.5 + u_time * 5., 0.0 + u_time * 15.);
+    // vec3 ro = vec3(8.0, 5.0, 7.0);
     vec3 rd = normalize(vec3(uv.x, uv.y, 1.0));
+
+    // mat4 viewToWorld = viewMatrix(ro, vec3(0.0, 2.5, 10.0), vec3(0.0, 1.0, 0.0));
+    // rd = (viewToWorld * vec4(ro, 0.0)).xyz;
+
 
     // Shortest distance to a surface
     float d = RayMarch(ro, rd);
@@ -283,11 +308,11 @@ void main () {
     // Closest point on the surface along view ray
     vec3 p = ro + rd * d;
 
-    vec3 K_a = vec3(0.2, 0.2, 0.2);
-    vec3 K_d = vec3(0.7, 0.2, 0.2);
+    vec3 K_a = vec3(0.5);
+    vec3 K_d = vec3(.2);
     vec3 K_s = vec3(1.0, 1.0, 1.0);
-    float shininess = 10.0;
-    
+    float shininess = 25.0;
+
     color = phongIllumination(K_a, K_d, K_s, shininess, p, ro);
 
     if (DITHER) color = dither(color);
